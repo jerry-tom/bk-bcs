@@ -1,7 +1,13 @@
 #!/bin/bash
 
+# set kernel parameters
+sysctl -w net.ipv4.tcp_syncookies=1
+sysctl -w net.ipv4.tcp_tw_reuse=1
+sysctl -w net.ipv4.tcp_tw_recycle=1
+sysctl -w net.ipv4.tcp_fin_timeout=30
+
 proxy=$1
-lb_interface_name=${LB_NETWORKCARD-"eth1"}
+localIp=`hostname -I`
 
 #start proxy module and shift cli arg
 if [ $proxy == "haproxy" ]; then
@@ -21,35 +27,15 @@ if [ $proxy == "nginx" ]; then
 fi
 shift 1
 
-echo "wait network interface $lb_interface_name" >> result.txt
-while true; do
-  grep -q '^1$' "/sys/class/net/$lb_interface_name/carrier" && break
-  ip link ls dev "$lb_interface_name" && break
-  sleep 1
-done > /dev/null 2>&1
-
-#wait for NIC ready
-sleep 10
+if [ "$LB_HAPROXY_ENABLE_LOG" ]; then
+  echo "start rsyslog daemon"
+  rsyslogd
+fi
 
 #set haproxy && nginx template http timeout time from env
-echo $LB_SESSION_TIMEOUT >> result.txt
-sed -i "s/http-keep-alive 60/http-keep-alive $LB_SESSION_TIMEOUT/g" /bcs-lb/template/haproxy.cfg.template
-sed -i "s/keepalive_timeout   65/keepalive_timeout $LB_SESSION_TIMEOUT/g" /bcs-lb/template/nginx.conf.template
-if [ -z "$LB_IPFORWARD" ]; then 
-    echo "LB_IPFORWARD is empty" >> result.txt
-    sed -i "/forwardfor/d" /bcs-lb/template/haproxy.cfg.template
-fi
 
-if [ -z "$LB_HAPROXYMONITORPORT" ];then
-    echo "haproxy monitor port is 8080" >> result.txt
-else
-    sed -i "s/8080/$LB_HAPROXYMONITORPORT/g" /bcs-lb/template/haproxy.cfg.template
-fi
-
-if [ -z "$LB_HAPROXYTHREADNUM" ];then
-    echo "haproxy thread num is 4" >> result.txt
-else
-    sed -i "s/nbthread 4/nbthread $LB_HAPROXYTHREADNUM/g" /bcs-lb/template/haproxy.cfg.template
+if [ $proxy == "haproxy" ] && [ -z "$LB_SHUNDOWNKILL" ] ;then
+    /bcs-lb/kill_ha.sh &
 fi
 
 #monitor loadbalance
@@ -60,7 +46,7 @@ do
   if [ $num == 0 ]; then
     #starting loadbalance watch configuration and reload haproxy
     cd /bcs-lb
-    /bcs-lb/bcs-loadbalance $@ --proxy $proxy  > ./logs/bcs-loadbalance.log 2>&1 &
+    /bcs-lb/bcs-loadbalance $@ --proxy $proxy --address $localIp >> ./logs/bcs-loadbalance.log 2>&1 &
   fi
   currentHour=$(date +%H)
   currentMin=$(date +%M)

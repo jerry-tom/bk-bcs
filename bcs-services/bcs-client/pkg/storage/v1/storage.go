@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"bk-bcs/bcs-common/common/codec"
 	"bk-bcs/bcs-services/bcs-client/pkg/types"
@@ -33,6 +34,8 @@ type Storage interface {
 	ListEndpoint(clusterID string, condition url.Values) (EndpointList, error)
 	ListDeployment(clusterID string, condition url.Values) (DeploymentList, error)
 	ListNamespace(clusterID string, condition url.Values) ([]string, error)
+	ListIPPoolStatic(clusterID string, condition url.Values) (IPPoolStaticList, error)
+	ListIPPoolStaticDetail(clusterID string, condition url.Values) (IPPoolStaticDetailList, error)
 
 	InspectApplication(clusterID, namespace, name string) (*ApplicationSet, error)
 	InspectProcess(clusterID, namespace, name string) (*ProcessSet, error)
@@ -45,7 +48,7 @@ type Storage interface {
 }
 
 const (
-	BcsStorageListDynamicURI    = "%s/bcsapi/v4/storage/query/mesos/dynamic/clusters/%s/%s?%s"
+	BcsStorageListDynamicURI    = "%s/bcsapi/v4/storage/query/mesos/dynamic/clusters/%s/%s"
 	BcsStorageInspectDynamicURI = "%s/bcsapi/v4/storage/mesos/dynamic/namespace_resources/clusters/%s/namespaces/%s/%s/%s"
 )
 
@@ -160,6 +163,30 @@ func (bs *bcsStorage) ListNamespace(clusterID string, condition url.Values) ([]s
 	return result, err
 }
 
+// ListIPPoolStatic query netservice ip pool static resource data from storage.
+func (bs *bcsStorage) ListIPPoolStatic(clusterID string, condition url.Values) (IPPoolStaticList, error) {
+	data, err := bs.listResource(clusterID, BcsStorageDynamicTypeIPPoolStatic, condition)
+	if err != nil {
+		return nil, err
+	}
+
+	var result IPPoolStaticList
+	err = codec.DecJson(data, &result)
+	return result, err
+}
+
+// ListIPPoolStaticDetail query netservice ip pool static resource detail data from storage.
+func (bs *bcsStorage) ListIPPoolStaticDetail(clusterID string, condition url.Values) (IPPoolStaticDetailList, error) {
+	data, err := bs.listResource(clusterID, BcsStorageDynamicTypeIPPoolStaticDetail, condition)
+	if err != nil {
+		return nil, err
+	}
+
+	var result IPPoolStaticDetailList
+	err = codec.DecJson(data, &result)
+	return result, err
+}
+
 func (bs *bcsStorage) InspectApplication(clusterID, namespace, name string) (*ApplicationSet, error) {
 	data, err := bs.inspectResource(clusterID, namespace, BcsStorageDynamicTypeApplication, name)
 	if err != nil {
@@ -252,10 +279,26 @@ func (bs *bcsStorage) listResource(clusterID, resourceType string, condition url
 	if condition == nil {
 		condition = make(url.Values)
 	}
+
+	conditionMap := make(map[string]string)
+	for k, v := range condition {
+		conditionMap[k] = strings.Join(v, ",")
+	}
+
+	var data []byte
+	if err := codec.EncJson(conditionMap, &data); err != nil {
+		return nil, err
+	}
+
+	// namespace not need to post
+	method := http.MethodPost
+	if resourceType == BcsStorageDynamicTypeNamespace {
+		method = http.MethodGet
+	}
 	resp, err := bs.requester.Do(
-		fmt.Sprintf(BcsStorageListDynamicURI, bs.bcsApiAddress, clusterID, resourceType, condition.Encode()),
-		http.MethodGet,
-		nil,
+		fmt.Sprintf(BcsStorageListDynamicURI, bs.bcsApiAddress, clusterID, resourceType),
+		method,
+		data,
 	)
 
 	if err != nil {

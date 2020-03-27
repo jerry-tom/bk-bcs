@@ -18,9 +18,9 @@ import (
 	"bk-bcs/bcs-common/common/blog"
 	commtypes "bk-bcs/bcs-common/common/types"
 	"errors"
-	"github.com/samuel/go-zookeeper/zk"
 )
 
+// DisableAgent setting agent unschedulable
 func (b *backend) DisableAgent(IP string) error {
 
 	agent, err := b.store.FetchAgentSetting(IP)
@@ -34,8 +34,8 @@ func (b *backend) DisableAgent(IP string) error {
 	if agent != nil {
 		agent.Disabled = true
 		return b.store.SaveAgentSetting(agent)
-	} 
-	
+	}
+
 	agentNew := commtypes.BcsClusterAgentSetting{
 		InnerIP:  IP,
 		Disabled: true,
@@ -43,6 +43,7 @@ func (b *backend) DisableAgent(IP string) error {
 	return b.store.SaveAgentSetting(&agentNew)
 }
 
+// EnableAgent enable Agent schedulable
 func (b *backend) EnableAgent(IP string) error {
 
 	agent, err := b.store.FetchAgentSetting(IP)
@@ -56,8 +57,8 @@ func (b *backend) EnableAgent(IP string) error {
 	if agent != nil {
 		agent.Disabled = false
 		return b.store.SaveAgentSetting(agent)
-	} 
-	
+	}
+
 	agentNew := commtypes.BcsClusterAgentSetting{
 		InnerIP:  IP,
 		Disabled: false,
@@ -65,6 +66,7 @@ func (b *backend) EnableAgent(IP string) error {
 	return b.store.SaveAgentSetting(&agentNew)
 }
 
+//QueryAgentSetting by IP address
 func (b *backend) QueryAgentSetting(IP string) (*commtypes.BcsClusterAgentSetting, error) {
 
 	agent, err := b.store.FetchAgentSetting(IP)
@@ -76,6 +78,7 @@ func (b *backend) QueryAgentSetting(IP string) (*commtypes.BcsClusterAgentSettin
 	return agent, nil
 }
 
+//QueryAgentSettingList by IP address list
 func (b *backend) QueryAgentSettingList(IPs []string) ([]*commtypes.BcsClusterAgentSetting, int, error) {
 
 	IPList := IPs
@@ -87,9 +90,9 @@ func (b *backend) QueryAgentSettingList(IPs []string) ([]*commtypes.BcsClusterAg
 
 	for _, IP := range IPList {
 		agent, err := b.store.FetchAgentSetting(IP)
-		if err != nil && err != zk.ErrNoNode {
+		if err != nil {
 			blog.Error("fetch agent setting(%s) from db fail:%s", IP, err.Error())
-			return nil,  comm.BcsErrCommGetZkNodeFail, err
+			return nil, comm.BcsErrCommGetZkNodeFail, err
 		}
 
 		blog.V(3).Infof("fetch agent setting(%s)[%+v] from zk", IP, agent)
@@ -104,6 +107,7 @@ func (b *backend) QueryAgentSettingList(IPs []string) ([]*commtypes.BcsClusterAg
 	return agents, comm.BcsSuccess, nil
 }
 
+//DeleteAgentSettingList clean agent setting by IP address list
 func (b *backend) DeleteAgentSettingList(IPs []string) (int, error) {
 
 	for _, IP := range IPs {
@@ -111,7 +115,7 @@ func (b *backend) DeleteAgentSettingList(IPs []string) (int, error) {
 		blog.Infof("delete agent setting(%s) from zk", IP)
 
 		err := b.store.DeleteAgentSetting(IP)
-		if err != nil && err != zk.ErrNoNode {
+		if err != nil {
 			blog.Error("delete agent setting(%s) from zk err: %s", IP, err.Error())
 			return comm.BcsErrCommDeleteZkNodeFail, err
 		}
@@ -120,6 +124,7 @@ func (b *backend) DeleteAgentSettingList(IPs []string) (int, error) {
 	return comm.BcsSuccess, nil
 }
 
+//SetAgentSettingList setting agent by detail info
 func (b *backend) SetAgentSettingList(agents []*commtypes.BcsClusterAgentSetting) (int, error) {
 
 	for _, agent := range agents {
@@ -142,7 +147,7 @@ func (b *backend) DisableAgentList(IPs []string) (int, error) {
 		agent, err := b.store.FetchAgentSetting(IP)
 		if err != nil {
 			blog.Error("fetch agent setting(%s) from db fail:%s", IP, err.Error())
-			return  comm.BcsErrCommGetZkNodeFail, err
+			return comm.BcsErrCommGetZkNodeFail, err
 		}
 
 		blog.Infof("disable agent(%s)", IP)
@@ -170,6 +175,7 @@ func (b *backend) DisableAgentList(IPs []string) (int, error) {
 	return comm.BcsSuccess, nil
 }
 
+//EnableAgentList enable agent schedulable by IP address list
 func (b *backend) EnableAgentList(IPs []string) (int, error) {
 
 	for _, IP := range IPs {
@@ -205,25 +211,26 @@ func (b *backend) EnableAgentList(IPs []string) (int, error) {
 	return comm.BcsSuccess, nil
 }
 
+//UpdateAgentSettingList update agent setting by details
 func (b *backend) UpdateAgentSettingList(update *commtypes.BcsClusterAgentSettingUpdate) (int, error) {
 
 	if len(update.IPs) <= 0 {
 		return comm.BcsErrCommRequestDataErr, errors.New("no ips to update")
 	}
 	if update.SettingName == "" {
-		return  comm.BcsErrCommRequestDataErr, errors.New("no settingName to update")
+		return comm.BcsErrCommRequestDataErr, errors.New("no settingName to update")
 	}
 
 	if update.ValueType == commtypes.MesosValueType_Text {
 
 		if update.ValueText == nil {
 			blog.Error("update agentsetting, valueText is nil")
-			return  comm.BcsErrCommRequestDataErr, errors.New("text is nil")
+			return comm.BcsErrCommRequestDataErr, errors.New("text is nil")
 		}
 
 		for _, IP := range update.IPs {
 			agent, err := b.store.FetchAgentSetting(IP)
-			if err != nil && err != zk.ErrNoNode {
+			if err != nil {
 				blog.Error("fetch agent setting(%s) from db fail:%s", IP, err.Error())
 				return comm.BcsErrCommGetZkNodeFail, err
 			}
@@ -259,7 +266,7 @@ func (b *backend) UpdateAgentSettingList(update *commtypes.BcsClusterAgentSettin
 
 		for _, IP := range update.IPs {
 			agent, err := b.store.FetchAgentSetting(IP)
-			if err != nil && err != zk.ErrNoNode {
+			if err != nil {
 				blog.Error("fetch agent setting(%s) from db fail:%s", IP, err.Error())
 				return comm.BcsErrCommGetZkNodeFail, err
 			}

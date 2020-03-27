@@ -35,8 +35,11 @@ func (s *Scheduler) RunLaunchApplication(transaction *Transaction) {
 
 	blog.Infof("transaction %s launch(%s.%s) run begin", transaction.ID, runAs, appID)
 
-	//var offerIdx int64 = 0
+	startedTaskgroup := time.Now()
+	startedApp := time.Now()
+	var schedulerNumber int64
 	for {
+		schedulerNumber++
 		blog.Infof("transaction %s launch(%s.%s) run check", transaction.ID, runAs, appID)
 
 		//check begin
@@ -64,17 +67,35 @@ func (s *Scheduler) RunLaunchApplication(transaction *Transaction) {
 			if isFit == true {
 				blog.V(3).Infof("transaction %s fit offer(%d) %s||%s ", transaction.ID, offerIdx, offer.GetHostname(), *(offer.Id.Value))
 				if s.UseOffer(curOffer) == true {
+					//when build new taskgroup, schedulerNumber==0
+					schedulerNumber = 0
+
 					blog.Info("transaction %s launch(%s.%s) use offer(%d) %s||%s", transaction.ID, runAs, appID, offerIdx, offer.GetHostname(), *(offer.Id.Value))
-					s.doLaunchTrans(transaction, curOffer)
+					launchedNum := opData.LaunchedNum
+					s.doLaunchTrans(transaction, curOffer, startedTaskgroup)
 					if transaction.Status == types.OPERATION_STATUS_FINISH || transaction.Status == types.OPERATION_STATUS_FAIL {
 						blog.Infof("transaction %s launch(%s.%s) end", transaction.ID, runAs, appID)
 						goto run_end
 					}
-					//time.Sleep(1 * time.Second)
+					if launchedNum < opData.LaunchedNum {
+						startedTaskgroup = time.Now()
+					}
+
 				} else {
 					blog.Info("transaction %s use offer(%d) %s||%s fail", transaction.ID, offerIdx, offer.GetHostname(), *(offer.Id.Value))
 				}
 			}
+		}
+
+		// when scheduler taskgroup number>=10, then report resources insufficient message
+		if schedulerNumber == 10 {
+			s.store.LockApplication(runAs + "." + appID)
+			app, _ := s.store.FetchApplication(runAs, appID)
+			if app != nil {
+				app.Message = "don't have fit resources to build taskgroup"
+				s.store.SaveApplication(app)
+			}
+			s.store.UnLockApplication(runAs + "." + appID)
 		}
 
 		//check timeout
@@ -84,15 +105,16 @@ func (s *Scheduler) RunLaunchApplication(transaction *Transaction) {
 			goto run_end
 		}
 
-		time.Sleep(3 * time.Second)
+		time.Sleep(time.Second)
 	}
 
 run_end:
 	s.FinishTransaction(transaction)
+	reportOperateAppMetrics(transaction.RunAs, transaction.AppID, LaunchApplicationType, startedApp)
 	blog.Infof("transaction %s launch(%s.%s) run end, result(%s)", transaction.ID, runAs, appID, transaction.Status)
 }
 
-func (s *Scheduler) doLaunchTrans(trans *Transaction, outOffer *offer.Offer) {
+func (s *Scheduler) doLaunchTrans(trans *Transaction, outOffer *offer.Offer, started time.Time) {
 
 	blog.Infof("do transaction %s begin", trans.ID)
 
@@ -135,6 +157,7 @@ func (s *Scheduler) doLaunchTrans(trans *Transaction, outOffer *offer.Offer) {
 		return
 	}
 
+	var taskgroupName string
 	if opData.LaunchedNum < int(version.Instances) && s.IsOfferResourceFitLaunch(version.AllResource(), outOffer) {
 		//if opData.LaunchedNum < int(version.Instances) && version.IsResourceFit(types.Resource{Cpus: cpus, Mem: mem, Disk: disk}) {
 		taskGroup, err := s.BuildTaskGroup(version, app, "", "launch application")
@@ -144,6 +167,7 @@ func (s *Scheduler) doLaunchTrans(trans *Transaction, outOffer *offer.Offer) {
 			s.DeclineResource(offer.Id.Value)
 			return
 		}
+		taskgroupName = taskGroup.Name
 
 		taskGroupInfo := task.CreateTaskGroupInfo(offer, version, resources, taskGroup)
 		if taskGroupInfo == nil {
@@ -186,6 +210,9 @@ func (s *Scheduler) doLaunchTrans(trans *Transaction, outOffer *offer.Offer) {
 		return
 	}
 
+	//launch taskgroup success, and metrics
+	reportScheduleTaskgroupMetrics(app.RunAs, app.Name, taskgroupName, LaunchTaskgroupType, started)
+
 	if opData.LaunchedNum >= int(version.Instances) {
 		blog.Info("transaction %s finish", trans.ID)
 		app.LastStatus = app.Status
@@ -204,7 +231,6 @@ func (s *Scheduler) doLaunchTrans(trans *Transaction, outOffer *offer.Offer) {
 		return
 	}
 	blog.Info("transaction %s finish, set application(%s.%s) to APP_STATUS_DEPLOYING", trans.ID, app.RunAs, app.ID)
-
 	blog.Info("do transaction %s end", trans.ID)
 	return
 }

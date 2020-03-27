@@ -40,7 +40,7 @@ func (s *Scheduler) CreateDeployment(body []byte) (string, error) {
 	if err != nil {
 		return err.Error(), err
 	}
-	//add  20181122
+	//store BcsDeployment original definition
 	deploymentDef.RawJson = &param
 
 	// post deploymentdef to bcs-mesos-scheduler,
@@ -90,7 +90,7 @@ func (s *Scheduler) UpdateDeployment(body []byte) (string, error) {
 		return err.Error(), err
 	}
 
-	//add  20181122
+	//store BcsDeployment original definition
 	deploymentDef.RawJson = &param
 
 	// post deploymentdef to bcs-mesos-scheduler,
@@ -234,6 +234,11 @@ func (s *Scheduler) scaleDeployment(ns, name string, instances int) (string, err
 }
 
 func (s *Scheduler) newDeploymentDefWithParam(param *bcstype.BcsDeployment) (*types.DeploymentDef, error) {
+	//check ObjectMeta is valid
+	err := param.MetaIsValid()
+	if err != nil {
+		return nil, err
+	}
 
 	deploymentDef := &types.DeploymentDef{
 		ObjectMeta: param.ObjectMeta,
@@ -294,7 +299,7 @@ func (s *Scheduler) newDeploymentDefWithParam(param *bcstype.BcsDeployment) (*ty
 		version.Labels[k] = v
 	}
 
-	version, err := s.setVersionWithPodSpec(version, param.Spec.Template)
+	version, err = s.setVersionWithPodSpec(version, param.Spec.Template)
 	if err != nil {
 		return nil, err
 	}

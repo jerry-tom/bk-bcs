@@ -14,18 +14,20 @@
 package storage
 
 import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"sync"
+	"time"
+
+	"golang.org/x/net/context"
+
 	"bk-bcs/bcs-common/common/blog"
 	"bk-bcs/bcs-common/common/http/httpclient"
 	commtypes "bk-bcs/bcs-common/common/types"
 	lbtypes "bk-bcs/bcs-common/pkg/loadbalance/v2"
 	"bk-bcs/bcs-mesos/bcs-mesos-watch/types"
 	schedtypes "bk-bcs/bcs-mesos/bcs-scheduler/src/types"
-	"encoding/json"
-	"fmt"
-	"golang.org/x/net/context"
-	"strconv"
-	"sync"
-	"time"
 )
 
 //CCResponse response struct from CC
@@ -93,7 +95,7 @@ func (cc *CCStorage) init() error {
 	cc.handlers["Application"] = &ChannelProxy{
 		dataQueue: make(chan *types.BcsSyncData, 10240),
 		actionHandler: &AppHandler{
-			oper: cc,
+			oper:         cc,
 			dataType:     "application",
 			ClusterID:    cc.ClusterID,
 			DoCheckDirty: true,
@@ -105,7 +107,7 @@ func (cc *CCStorage) init() error {
 		cc.handlers[applicationChannel] = &ChannelProxy{
 			dataQueue: make(chan *types.BcsSyncData, 10240),
 			actionHandler: &AppHandler{
-				oper: cc,
+				oper:         cc,
 				dataType:     "application",
 				ClusterID:    cc.ClusterID,
 				DoCheckDirty: false,
@@ -142,7 +144,7 @@ func (cc *CCStorage) init() error {
 	cc.handlers["TaskGroup"] = &ChannelProxy{
 		dataQueue: make(chan *types.BcsSyncData, 10240),
 		actionHandler: &TaskGroupHandler{
-			oper: cc,
+			oper:         cc,
 			dataType:     "taskgroup",
 			ClusterID:    cc.ClusterID,
 			DoCheckDirty: true,
@@ -153,7 +155,7 @@ func (cc *CCStorage) init() error {
 	cc.handlers["ExportService"] = &ChannelProxy{
 		dataQueue: make(chan *types.BcsSyncData, 10240),
 		actionHandler: &ExpServiceHandler{
-			oper: cc,
+			oper:      cc,
 			dataType:  "exportservice",
 			ClusterID: cc.ClusterID,
 		},
@@ -204,10 +206,28 @@ func (cc *CCStorage) init() error {
 		},
 	}
 
+	cc.handlers[dataTypeIPPoolStatic] = &ChannelProxy{
+		dataQueue: make(chan *types.BcsSyncData, 1024),
+		actionHandler: &NetServiceHandler{
+			oper:      cc,
+			dataType:  dataTypeIPPoolStatic,
+			ClusterID: cc.ClusterID,
+		},
+	}
+
+	cc.handlers[dataTypeIPPoolStaticDetail] = &ChannelProxy{
+		dataQueue: make(chan *types.BcsSyncData, 1024),
+		actionHandler: &NetServiceHandler{
+			oper:      cc,
+			dataType:  dataTypeIPPoolStaticDetail,
+			ClusterID: cc.ClusterID,
+		},
+	}
+
 	return nil
 }
 
-// had better add rwlock
+//SetDCAddress had better add rwlock
 func (cc *CCStorage) SetDCAddress(address []string) {
 	blog.Info("CCStorage set DC address: %s", address)
 	cc.rwServers.Lock()
@@ -217,6 +237,7 @@ func (cc *CCStorage) SetDCAddress(address []string) {
 	return
 }
 
+//GetDCAddress get bcs-storage address
 func (cc *CCStorage) GetDCAddress() string {
 
 	address := ""
@@ -286,6 +307,7 @@ func (cc *CCStorage) Worker() {
 	}
 }
 
+//CreateDCNode bcs-storage create operation
 func (cc *CCStorage) CreateDCNode(node string, value interface{}, action string) error {
 
 	if len(node) == 0 || value == nil {
@@ -303,8 +325,6 @@ func (cc *CCStorage) CreateDCNode(node string, value interface{}, action string)
 		blog.Error("marsha1 json for %s failed: %+v", path, err)
 		return err
 	}
-
-	//blog.V(3).Infof("DC [%s %s] begin", action, path)
 
 	begin := time.Now().UnixNano() / 1e6
 
@@ -332,6 +352,7 @@ func (cc *CCStorage) CreateDCNode(node string, value interface{}, action string)
 	return nil
 }
 
+//DeleteDCNode storage delete operation
 func (cc *CCStorage) DeleteDCNode(node, action string) error {
 	if len(node) == 0 {
 		blog.Error("CCStorage Get empty node")
@@ -369,6 +390,7 @@ func (cc *CCStorage) DeleteDCNode(node, action string) error {
 	return nil
 }
 
+//DeleteDCNodes bcs-storage delete operation
 func (cc *CCStorage) DeleteDCNodes(node string, value interface{}, action string) error {
 
 	if len(node) == 0 || value == nil {
@@ -400,4 +422,3 @@ func (cc *CCStorage) DeleteDCNodes(node string, value interface{}, action string
 	blog.Info("DC [%s %s] response: %s, req-data: %s", action, path, bodyStr, string(valueBytes))
 	return nil
 }
-

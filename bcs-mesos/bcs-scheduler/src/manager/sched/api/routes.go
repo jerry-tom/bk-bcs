@@ -115,13 +115,14 @@ func (r *Router) initRoutes() {
 	r.actions = append(r.actions, httpserver.NewAction("POST", "/deployment/{namespace}/{name}/resumeupdate", nil, r.resumeUpdateDeployment))
 	r.actions = append(r.actions, httpserver.NewAction("DELETE", "/deployment/{namespace}/{name}", nil, r.deleteDeployment))
 	r.actions = append(r.actions, httpserver.NewAction("PUT", "/deployment/{namespace}/{name}/scale/{instances}", nil, r.scaleDeployment_r))
+	r.actions = append(r.actions, httpserver.NewAction("GET", "/deployment/{namespace}/{name}", nil, r.getDeployment_r))
 	/*-------------- deployment ---------------*/
 
 	/*-------------- healthcheck ---------------*/
 	r.actions = append(r.actions, httpserver.NewAction("POST", "/healthcheck", nil, r.healthCheckReport))
 	/*-------------- healthcheck ---------------*/
 
-	/*-------------- mesos slave ---------------*/
+	/*-------------- agent setting ---------------*/
 	r.actions = append(r.actions, httpserver.NewAction("GET", "/agentsetting/{IP}", nil, r.queryAgentSetting))
 	r.actions = append(r.actions, httpserver.NewAction("POST", "/agentsetting/{IP}/enable", nil, r.enableAgent))
 	r.actions = append(r.actions, httpserver.NewAction("POST", "/agentsetting/{IP}/disable", nil, r.disableAgent))
@@ -131,7 +132,7 @@ func (r *Router) initRoutes() {
 	r.actions = append(r.actions, httpserver.NewAction("POST", "/agentsettings/update", nil, r.updateAgentSettingList))
 	r.actions = append(r.actions, httpserver.NewAction("POST", "/agentsettings/enable", nil, r.enableAgentList))
 	r.actions = append(r.actions, httpserver.NewAction("POST", "/agentsettings/disable", nil, r.disableAgentList))
-	/*-------------- mesos slave ---------------*/
+	/*-------------- agent setting ---------------*/
 
 	/*-------------- custom resource -----------------*/
 	r.actions = append(r.actions, httpserver.NewAction("POST", "/crr/register", nil, r.registerCustomResource))
@@ -140,6 +141,7 @@ func (r *Router) initRoutes() {
 	r.actions = append(r.actions, httpserver.NewAction("DELETE", "/crd/namespaces/{ns}/{kind}/{name}", nil, r.deleteCustomResource))
 	r.actions = append(r.actions, httpserver.NewAction("GET", "/crd/namespaces/{ns}/{kind}", nil, r.listCustomResource))
 	r.actions = append(r.actions, httpserver.NewAction("GET", "/crd/namespaces/{ns}/{kind}/{name}", nil, r.getCustomResource))
+	r.actions = append(r.actions, httpserver.NewAction("GET", "/crd/{kind}", nil, r.listAllCustomResource))
 	/*-------------- custom resource -----------------*/
 
 	/*-------------- image -----------------*/

@@ -21,6 +21,7 @@ import (
 	"bk-bcs/bcs-services/bcs-client/cmd/agent"
 	"bk-bcs/bcs-services/bcs-client/cmd/application"
 	"bk-bcs/bcs-services/bcs-client/cmd/available"
+	"bk-bcs/bcs-services/bcs-client/cmd/batch"
 	"bk-bcs/bcs-services/bcs-client/cmd/create"
 	deletion "bk-bcs/bcs-services/bcs-client/cmd/delete"
 	"bk-bcs/bcs-services/bcs-client/cmd/deployment"
@@ -39,7 +40,7 @@ import (
 func main() {
 	bcsCli := cli.NewApp()
 	bcsCli.Name = "bcs client"
-	bcsCli.Usage = "command-line client for bcs"
+	bcsCli.Usage = "command-line client for BlueKing Container Service"
 	cliVersion := fmt.Sprintf("\n%s", version.GetVersion())
 	bcsCli.Version = cliVersion
 
@@ -52,7 +53,6 @@ func main() {
 		list.NewListCommand(),
 		inspect.NewInspectCommand(),
 		get.NewGetCommand(),
-		//metric.NewMetricCommand(),
 		deployment.NewCancelCommand(),
 		deployment.NewPauseCommand(),
 		deployment.NewResumeCommand(),
@@ -64,6 +64,8 @@ func main() {
 		offer.NewOfferCommand(),
 		agent.NewAgentSettingCommand(),
 		template.NewTemplateCommand(),
+		batch.NewApplyCommand(),
+		batch.NewCleanCommand(),
 	}
 
 	if err := utils.InitCfg(); err != nil {

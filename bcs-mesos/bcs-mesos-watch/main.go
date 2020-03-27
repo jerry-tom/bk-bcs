@@ -39,6 +39,7 @@ func setCfg(op *MesosWatchOptions) {
 	cfg.KeyFile = op.ClientKeyFile
 	cfg.RegDiscvSvr = op.BCSZk
 	cfg.Address = op.Address
+	cfg.IsExternal = op.IsExternal
 
 	cfg.MetricPort = op.MetricPort
 
@@ -52,6 +53,14 @@ func setCfg(op *MesosWatchOptions) {
 		cfg.ServerSchem = "https"
 	} else {
 		cfg.ServerSchem = "http"
+	}
+
+	cfg.KubeConfig = op.Kubeconfig
+	cfg.StoreDriver = op.StoreDriver
+
+	cfg.NetServiceZK = op.NetServiceZK
+	if len(cfg.NetServiceZK) == 0 {
+		cfg.NetServiceZK = cfg.RegDiscvSvr
 	}
 }
 
@@ -95,4 +104,11 @@ type MesosWatchOptions struct {
 	TaskgroupThreadNum     uint   `json:"taskgroup_threads" value:"100" usage:"taskgroup thread num"`
 	ExportserviceThreadNum uint   `json:"exportservice_threads" value:"100" usage:"exportservice thread num"`
 	Cluster                string `json:"cluster" value:"" usage:"the cluster ID under bcs"`
+	IsExternal             bool   `json:"is_external" value:"false" usage:"the cluster whether external deployment"`
+	Kubeconfig             string `json:"kubeconfig" value:"" usage:"kubeconfig, when store_driver is etcd"`
+	StoreDriver            string `json:"store_driver" value:"zookeeper" usage:"the store driver, enum: zookeeper, etcd"`
+
+	// NetServiceZK is zookeeper address config for netservice discovery,
+	// reuse RegDiscvSvr by default.
+	NetServiceZK string `json:"netservice_zookeeper" value:"" usage:"netservice discovery zookeeper address"`
 }
