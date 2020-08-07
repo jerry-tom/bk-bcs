@@ -14,23 +14,24 @@
 package manager
 
 import (
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store/etcd"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store/zk"
 	"fmt"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store/etcd"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store/zk"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/pluginManager"
 	"strconv"
 	"strings"
 	//"sync"
 	"os"
-	//"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/apiserver"
-	//"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/ipam"
-	//"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/ns"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/sched"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/schedcontext"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/util"
+	//"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/apiserver"
+	//"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/ipam"
+	//"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/ns"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/sched"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/schedcontext"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/util"
 
-	"bk-bcs/bcs-common/common/blog"
-	"bk-bcs/bcs-common/common/http/httpserver"
+	"github.com/Tencent/bk-bcs/bcs-common/common/blog"
+	"github.com/Tencent/bk-bcs/bcs-common/common/http/httpserver"
 )
 
 type Manager struct {
@@ -46,8 +47,19 @@ func New(config util.SchedConfig) (*Manager, error) {
 
 	var s store.Store
 	var err error
+	var pm *pluginManager.PluginManager
+	if config.Scheduler.Plugins != "" {
+		blog.Infof("start init plugin manager")
+		plugins := strings.Split(config.Scheduler.Plugins, ",")
+
+		pm, err = pluginManager.NewPluginManager(plugins, config.Scheduler.PluginDir)
+		if err != nil {
+			blog.Errorf("NewPluginManager error %s", err.Error())
+		}
+	}
+
 	if config.Scheduler.StoreDriver == "etcd" {
-		s, err = etcd.NewEtcdStore(config.Scheduler.Kubeconfig)
+		s, err = etcd.NewEtcdStore(config.Scheduler.Kubeconfig, pm, config.Scheduler.Cluster)
 		if err != nil {
 			blog.Errorf("new etcd store failed: %s", err.Error())
 			return nil, err
@@ -60,7 +72,7 @@ func New(config util.SchedConfig) (*Manager, error) {
 			blog.Errorf("connect zookeeper %s failed: %s", config.ZkHost, err.Error())
 			return nil, err
 		}
-		s = zk.NewManagerStore(dbzk)
+		s = zk.NewManagerStore(dbzk, pm, config.Scheduler.Cluster)
 		config.Scheduler.UseCache = false
 	}
 

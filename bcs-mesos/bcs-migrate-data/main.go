@@ -20,11 +20,11 @@ import (
 	"runtime"
 	"strings"
 
-	"bk-bcs/bcs-common/common/blog"
-	"bk-bcs/bcs-common/common/conf"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store/etcd"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store/zk"
+	"github.com/Tencent/bk-bcs/bcs-common/common/blog"
+	"github.com/Tencent/bk-bcs/bcs-common/common/conf"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store/etcd"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store/zk"
 )
 
 type Options struct {
@@ -51,12 +51,12 @@ func main() {
 		blog.Errorf("connect zookeeper %s failed: %s", op.BCSZk, err.Error())
 		os.Exit(1)
 	}
-	zkStore := zk.NewManagerStore(dbzk)
+	zkStore := zk.NewManagerStore(dbzk, nil, "")
 	zkStore.InitCacheMgr(false)
 	blog.Infof("connect zookeeper %s success", op.BCSZk)
 
 	//connect etcd
-	etcdStore, err := etcd.NewEtcdStore(op.KubeConfig)
+	etcdStore, err := etcd.NewEtcdStore(op.KubeConfig, nil, "")
 	if err != nil {
 		blog.Errorf("new etcd store failed: %s", err.Error())
 		os.Exit(1)

@@ -14,20 +14,21 @@
 package task
 
 import (
-	"bk-bcs/bcs-common/common/blog"
-	"bk-bcs/bcs-common/common/codec"
-	bcstype "bk-bcs/bcs-common/common/types"
-	commtypes "bk-bcs/bcs-common/common/types"
-	offerP "bk-bcs/bcs-mesos/bcs-scheduler/src/manager/sched/offer"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/mesosproto/mesos"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/types"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Tencent/bk-bcs/bcs-common/common/blog"
+	"github.com/Tencent/bk-bcs/bcs-common/common/codec"
+	bcstype "github.com/Tencent/bk-bcs/bcs-common/common/types"
+	commtypes "github.com/Tencent/bk-bcs/bcs-common/common/types"
+	"github.com/Tencent/bk-bcs/bcs-common/pkg/scheduler/mesosproto/mesos"
+	offerP "github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/sched/offer"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/store"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/types"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -166,7 +167,7 @@ func CreateTaskGroup(version *types.Version, ID string, appInstances uint64, app
 
 			taskgroup.Taskgroup = append(taskgroup.Taskgroup, &task)
 		}
-	case commtypes.BcsDataType_APP, "":
+	case commtypes.BcsDataType_APP, "", commtypes.BcsDataType_Daemonset:
 		// build container tasks
 		for index, container := range version.Container {
 			var task types.Task
@@ -222,6 +223,7 @@ func CreateTaskGroup(version *types.Version, ID string, appInstances uint64, app
 			task.Command = container.Docker.Command
 			task.Arguments = container.Docker.Arguments
 			task.DataClass = container.DataClass
+			task.DataClass.Msgs = make([]*types.BcsMessage, 0)
 			if err := createTaskConfigMaps(&task, container.ConfigMaps, store); err != nil {
 				return nil, err
 			}
@@ -381,8 +383,11 @@ func createTaskConfigMaps(task *types.Task, configMaps []commtypes.ConfigMap, st
 				blog.Warn("unkown configmap type:%s for task:%s", confItem.Type, task.ID)
 				continue
 			}
-			blog.Info("add task configmap message:%+v", msg)
+			by, _ := json.Marshal(msg)
+			blog.Info("add task %s configmap message: %s", task.ID, string(by))
 			task.DataClass.Msgs = append(task.DataClass.Msgs, msg)
+			by, _ = json.Marshal(task.DataClass)
+			blog.Infof("task %s dataclass(%s)", task.ID, string(by))
 		}
 	}
 	return nil
@@ -1293,6 +1298,7 @@ func CreateTaskGroupInfo(offer *mesos.Offer, version *types.Version, resources [
 	}
 
 	if len(taskgroup.Taskgroup) <= 0 {
+		blog.Errorf("build taskgroup(%s) failed: taskgroup.Taskgroup is empty", taskgroup.ID)
 		return nil
 	}
 

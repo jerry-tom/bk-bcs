@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Tencent/bk-bcs/bcs-common/pkg/mesosdriver"
 	"io/ioutil"
 	"os"
 	"runtime"
@@ -24,17 +25,17 @@ import (
 	"sync"
 	"time"
 
-	"bk-bcs/bcs-common/common"
-	rd "bk-bcs/bcs-common/common/RegisterDiscover"
-	"bk-bcs/bcs-common/common/blog"
-	bhttp "bk-bcs/bcs-common/common/http"
-	"bk-bcs/bcs-common/common/http/httpserver"
-	commtypes "bk-bcs/bcs-common/common/types"
-	"bk-bcs/bcs-common/common/version"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/tools"
-	schedtypes "bk-bcs/bcs-mesos/bcs-scheduler/src/types"
-	"bk-bcs/bcs-services/bcs-network-detection/config"
-	"bk-bcs/bcs-services/bcs-network-detection/types"
+	"github.com/Tencent/bk-bcs/bcs-common/common"
+	rd "github.com/Tencent/bk-bcs/bcs-common/common/RegisterDiscover"
+	"github.com/Tencent/bk-bcs/bcs-common/common/blog"
+	bhttp "github.com/Tencent/bk-bcs/bcs-common/common/http"
+	"github.com/Tencent/bk-bcs/bcs-common/common/http/httpserver"
+	commtypes "github.com/Tencent/bk-bcs/bcs-common/common/types"
+	"github.com/Tencent/bk-bcs/bcs-common/common/version"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/tools"
+	schedtypes "github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/types"
+	"github.com/Tencent/bk-bcs/bcs-services/bcs-network-detection/config"
+	"github.com/Tencent/bk-bcs/bcs-services/bcs-network-detection/types"
 
 	"github.com/emicklei/go-restful"
 )
@@ -64,8 +65,6 @@ type NetworkDetection struct {
 type ContainerPlatform interface {
 	//get cluster all nodes
 	GetNodes(clusterid string) ([]*types.NodeInfo, error)
-	//deploy detection container in cluster
-	DeployDetectionContainer(clusterid, definition string) error
 	//deploy application
 	//deploy is defination json
 	CeateDeployment(clusterid string, deploy []byte) error
@@ -102,7 +101,11 @@ func (n *NetworkDetection) Start() error {
 		return err
 	}
 	//new mesos platform
-	n.platform, err = NewMesosPlatform(n.conf)
+	conf := &mesosdriver.Config{
+		ZkAddr:     n.conf.BcsZk,
+		ClientCert: n.conf.ClientCert,
+	}
+	n.platform, err = mesosdriver.NewMesosDriverClient(conf)
 	if err != nil {
 		return err
 	}

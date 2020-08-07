@@ -16,15 +16,16 @@
 package scheduler
 
 import (
-	"bk-bcs/bcs-common/common/blog"
-	commtypes "bk-bcs/bcs-common/common/types"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/sched/offer"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/manager/sched/task"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/mesosproto/mesos"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/types"
-	"bk-bcs/bcs-mesos/bcs-scheduler/src/util"
 	"net/http"
 	"time"
+
+	"github.com/Tencent/bk-bcs/bcs-common/common/blog"
+	commtypes "github.com/Tencent/bk-bcs/bcs-common/common/types"
+	"github.com/Tencent/bk-bcs/bcs-common/pkg/scheduler/mesosproto/mesos"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/sched/offer"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/manager/sched/task"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/types"
+	"github.com/Tencent/bk-bcs/bcs-mesos/bcs-scheduler/src/util"
 )
 
 // The goroutine function for scale application transaction
@@ -39,9 +40,9 @@ func (s *Scheduler) RunScaleApplication(transaction *Transaction) {
 
 	startedTaskgroup := time.Now()
 	startedApp := time.Now()
+	var schedulerNumber int64
 	for {
 		blog.Infof("transaction %s scale(%s.%s) run check", transaction.ID, runAs, appID)
-
 		//check begin
 		if transaction.CreateTime+transaction.DelayTime > time.Now().Unix() {
 			blog.Infof("transaction %s scale(%s.%s) delaytime(%d), cannot do now",
@@ -49,7 +50,6 @@ func (s *Scheduler) RunScaleApplication(transaction *Transaction) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
-
 		opData := transaction.OpData.(*TransAPIScaleOpdata)
 		version := opData.Version
 
@@ -60,6 +60,7 @@ func (s *Scheduler) RunScaleApplication(transaction *Transaction) {
 				goto run_end
 			}
 		} else {
+			schedulerNumber++
 			offerOut := s.GetFirstOffer()
 			for offerOut != nil {
 				offer := offerOut.Offer
@@ -70,6 +71,8 @@ func (s *Scheduler) RunScaleApplication(transaction *Transaction) {
 				isFit := s.IsOfferResourceFitLaunch(opData.NeedResource, curOffer) && s.IsConstraintsFit(version, offer, "") &&
 					s.IsOfferExtendedResourcesFitLaunch(version.GetExtendedResources(), curOffer)
 				if isFit == true {
+					//when build new taskgroup, schedulerNumber==0
+					schedulerNumber = 0
 					blog.V(3).Infof("transaction %s fit offer %s||%s ", transaction.ID, offer.GetHostname(), *(offer.Id.Value))
 					if s.UseOffer(curOffer) == true {
 						blog.Info("transaction %s scale(%s.%s) use offer %s||%s", transaction.ID, runAs, appID, offer.GetHostname(), *(offer.Id.Value))
@@ -89,6 +92,13 @@ func (s *Scheduler) RunScaleApplication(transaction *Transaction) {
 				}
 
 			}
+		}
+
+		// when scheduler taskgroup number>=10, then report resources insufficient message
+		if schedulerNumber >= 10 {
+			blog.Warn("transaction %s scale(%s.%s) timeout", transaction.ID, runAs, appID)
+			transaction.Status = types.OPERATION_STATUS_TIMEOUT
+			goto run_end
 		}
 
 		//check timeout
